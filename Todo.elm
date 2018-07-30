@@ -1,13 +1,16 @@
 module Todo exposing (..)
 
-import Html exposing (Html, beginnerProgram, div, text, ul, li, input, button)
+import Html exposing (Html, Attribute, beginnerProgram, div, text, ul, li, input, button)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onInput, onClick)
+import Html.Events exposing (onInput, onClick, on, keyCode)
+import Json.Decode as Json
+import Html.Attributes exposing (..)
 
 
 type alias Task =
     { task : String
     , status : Bool
+    , id : Int
     }
 
 
@@ -18,13 +21,14 @@ type alias Tasks =
 type alias Model =
     { tasks : Tasks
     , newInput : String
+    , taskCount : Int
     }
 
 
 type Msg
     = Add
     | TemporaryInput String
-    | Delete
+    | Delete Int
     | Done
     | Todo
 
@@ -32,9 +36,7 @@ type Msg
 main : Program Never Model Msg
 main =
     beginnerProgram
-        { model = Model [ Task "A" True, Task "AB" True, Task "ABC" True, Task "ABCD" True, Task "ABCDE" True ] ""
-
-        -- { model = []
+        { model = Model [] "" 0
         , view = view
         , update = update
         }
@@ -48,12 +50,18 @@ update msg model =
 
         Add ->
             let
+                taskCount =
+                    model.taskCount + 1
+
                 newTask =
-                    Task model.newInput True
+                    Task model.newInput True taskCount
             in
-                { tasks = List.append model.tasks [ newTask ]
-                , newInput = ""
-                }
+                { model | newInput = "", tasks = List.append model.tasks [ newTask ], taskCount = taskCount }
+
+        Delete x ->
+            { model
+                | tasks = List.filter (\task -> task.id /= x) model.tasks
+            }
 
         _ ->
             model
@@ -74,7 +82,9 @@ view model =
 showTask : Task -> Html Msg
 showTask task =
     li []
-        [ text task.task ]
+        [ text task.task
+        , button [ onClick (Delete task.id) ] [ text "-" ]
+        ]
 
 
 newTask : Model -> Html Msg
@@ -84,7 +94,21 @@ newTask model =
             [ type_ "text"
             , placeholder "Add Task"
             , onInput TemporaryInput
+            , value model.newInput
+            , onKeyUp Add
             ]
             []
         , button [ onClick Add ] [ text "Add" ]
         ]
+
+
+onKeyUp : Msg -> Attribute Msg
+onKeyUp msg =
+    let
+        isEnter code =
+            if code == 13 then
+                Json.succeed msg
+            else
+                Json.fail "not ENTER"
+    in
+        on "keydown" (Json.andThen isEnter keyCode)
